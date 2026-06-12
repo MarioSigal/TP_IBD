@@ -1,23 +1,6 @@
 -- =====================================================================
 -- Ejercicio 2.1 - Funciones de Ventana
 -- TP IBD - Etapa 2: SQL Avanzado
--- =====================================================================
--- Dominio: comercio minorista (productos, marcas, categorias, ventas,
--- compras, stock, combos, clientes y puntos de venta).
---
--- La consigna pide al menos 2 consultas con funciones de ventana que
--- resuelvan preguntas de negocio NO triviales con GROUP BY. Aqui se
--- proponen 2 consultas. Para cada una se documenta:
---   (a) La pregunta de negocio que responde.
---   (b) Por que una funcion de ventana es la herramienta adecuada.
---   (c) Una explicacion del resultado que produce.
---
--- Nota clave sobre por que NO alcanza GROUP BY: las funciones de ventana
--- calculan un valor agregado por fila SIN colapsar las filas. Esto permite
--- comparar cada fila con su grupo (ranking, participacion porcentual) o con
--- filas vecinas (variacion contra el periodo anterior, acumulados), algo
--- que GROUP BY no puede hacer porque reduce cada grupo a una sola fila.
--- =====================================================================
 
 
 -- =====================================================================

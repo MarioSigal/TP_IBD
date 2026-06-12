@@ -10,17 +10,6 @@
 --   * Categoricas:  metodo_pago, estado_entrega.
 --   * Nullable:     cliente_id (ventas sin cliente identificado), util para
 --                   que el porcentaje de no-nulos de C1 no sea siempre 100%.
---
--- La consigna pide tres consultas (C1, C2, C3) que reproduzcan los
--- estadisticos vistos en la practica, y ademas al menos una consulta con
--- Common Table Expressions (WITH). Las tres consultas usan CTEs, por lo que
--- ese requisito queda ampliamente cubierto.
---
--- Recordatorio de la tabla (ver creacion_tablas.sql):
---   venta_id PK, cliente_id (NULLABLE FK), puntos_de_venta_id FK,
---   fecha DATE, hora TIME, precio_total NUMERIC, costo_total NUMERIC,
---   metodo_pago (EFECTIVO|TRANSFERENCIA|TARJETA_CREDITO|TARJETA_DEBITO|
---   MERCADOPAGO|OTRO), estado_entrega (PENDIENTE|ENTREGADO).
 -- =====================================================================
 
 
