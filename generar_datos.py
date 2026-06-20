@@ -43,7 +43,7 @@ SABORES = ["Chocolate", "Vainilla", "Frutilla", "Cookies & Cream", "Banana", "Ne
 MEDIDAS = ["1 kg", "2 kg", "500 g", "300 g", "90 serv", "60 serv", "30 serv", "120 tabs", "90 caps"]
 
 PRODUCTOS_PLANTILLA = [
-    # (nombre, categoria_id, unidad, descripccion_medida, costo_base, precio_base)
+    # (nombre, categoria_id, unidad, descripcion_medida, costo_base, precio_base)
     ("Whey Protein 100%", 1, "pote", "1 kg", 20000.00, 29000.00),
     ("Isolate Whey Protein", 1, "pote", "1 kg", 28000.00, 42000.00),
     ("Creatina Monohidrato", 2, "pote", "300 g", 15000.00, 22000.00),
@@ -151,7 +151,7 @@ def generar_datos_sql():
                 'marca_id': brand_id,
                 'categoria_id': cat_id,
                 'unidad': unidad,
-                'descripccion_medida': medida,
+                'descripcion_medida': medida,
                 'sabor': sabor,
                 'costo_promedio': costo,
                 'precio_normal': precio_normal,
@@ -159,7 +159,7 @@ def generar_datos_sql():
             }
             productos.append(prod_record)
             sql_lines.append(
-                f"INSERT INTO PRODUCTOS (product_id, sku, nombre, marca_id, categoria_id, unidad, descripccion_medida, ultimo_costo, precio_normal, precio_fiel) "
+                f"INSERT INTO PRODUCTOS (product_id, sku, nombre, marca_id, categoria_id, unidad, descripcion_medida, ultimo_costo, precio_normal, precio_fiel) "
                 f"VALUES ({prod_id}, {escape_sql(sku)}, {escape_sql(nombre_completo)}, {brand_id}, {cat_id}, {escape_sql(unidad)}, {escape_sql(medida)}, {costo}, {precio_normal}, {precio_fiel}) "
                 f"ON CONFLICT DO NOTHING;"
             )
@@ -220,7 +220,7 @@ def generar_datos_sql():
 
     for p in productos:
         for pv in PUNTOS_DE_VENTA:
-            stock_actual[(p['product_id'], pv[0])] = 200.00
+            stock_actual[(p['product_id'], pv[0])] = 1000.00
             stock_minimo_val[(p['product_id'], pv[0])] = 10.00
 
     # Listas en memoria para compras y ventas

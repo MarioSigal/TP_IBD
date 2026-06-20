@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS PRODUCTOS (
     marca_id INTEGER NOT NULL REFERENCES MARCAS(marca_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     categoria_id INTEGER NOT NULL REFERENCES CATEGORIAS(categoria_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     unidad VARCHAR(50) NOT NULL DEFAULT 'unidad' CHECK (LENGTH(TRIM(unidad)) > 0),
-    descripccion_medida VARCHAR(100), -- Nombre de columna según la typo del diagrama original (descripccion con doble c)
+    descripcion_medida VARCHAR(100),
     ultimo_costo NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (ultimo_costo >= 0), --es el ultimo costo registrado en compras, se actualiza con cada compra nueva. Al hacer una venta, este es el costo del producto.
     precio_normal NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_normal >= 0),
     precio_fiel NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_fiel >= 0),
@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS CLIENTES (
     nombre VARCHAR(100) NOT NULL CHECK (LENGTH(TRIM(nombre)) > 0),
     apellido VARCHAR(100) NOT NULL CHECK (LENGTH(TRIM(apellido)) > 0),
     dni VARCHAR(20) NOT NULL UNIQUE CHECK (LENGTH(TRIM(dni)) > 0),
-    email VARCHAR(150) UNIQUE CHECK (email IS NULL OR email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$'),
+    email VARCHAR(150) UNIQUE CHECK (email IS NULL OR email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
     es_cliente_fiel BOOLEAN NOT NULL DEFAULT FALSE
 );
 
