@@ -45,7 +45,6 @@ CREATE TABLE IF NOT EXISTS PROVEEDORES (
 CREATE TABLE IF NOT EXISTS PUNTOS_DE_VENTA (
     puntos_de_venta_id INTEGER PRIMARY KEY,
     nombre VARCHAR(100) NOT NULL UNIQUE CHECK (LENGTH(TRIM(nombre)) > 0),
-    direccion VARCHAR(255) NOT NULL CHECK (LENGTH(TRIM(direccion)) > 0),
     telefono VARCHAR(50)
 );
 
@@ -59,24 +58,7 @@ CREATE TABLE IF NOT EXISTS CLIENTES (
     es_cliente_fiel BOOLEAN NOT NULL DEFAULT FALSE
 );
 
--- 7. COMBOS
-CREATE TABLE IF NOT EXISTS COMBOS (
-    combo_id INTEGER PRIMARY KEY,
-    nombre VARCHAR(150) NOT NULL UNIQUE CHECK (LENGTH(TRIM(nombre)) > 0),
-    precio_normal NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_normal >= 0),
-    precio_fiel NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_fiel >= 0),
-    CONSTRAINT chk_precios_combo CHECK (precio_fiel <= precio_normal)
-);
-
--- 8. COMPONE (Asociativa M:N entre COMBOS y PRODUCTOS)
-CREATE TABLE IF NOT EXISTS COMPONE (
-    combo_id INTEGER NOT NULL REFERENCES COMBOS(combo_id) ON UPDATE CASCADE ON DELETE CASCADE,
-    product_id INTEGER NOT NULL REFERENCES PRODUCTOS(product_id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    cantidad NUMERIC(10, 2) NOT NULL CHECK (cantidad > 0),
-    PRIMARY KEY (combo_id, product_id)
-);
-
--- 9. STOCK (Asociativa M:N entre PRODUCTOS y PUNTOS_DE_VENTA)
+-- 7. STOCK (Asociativa M:N entre PRODUCTOS y PUNTOS_DE_VENTA)
 CREATE TABLE IF NOT EXISTS STOCK (
     product_id INTEGER NOT NULL REFERENCES PRODUCTOS(product_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     puntos_de_venta_id INTEGER NOT NULL REFERENCES PUNTOS_DE_VENTA(puntos_de_venta_id) ON UPDATE CASCADE ON DELETE RESTRICT,
@@ -86,20 +68,7 @@ CREATE TABLE IF NOT EXISTS STOCK (
     PRIMARY KEY (product_id, puntos_de_venta_id)
 );
 
--- 10. MOVIMIENTOS_DE_STOCK
-CREATE TABLE IF NOT EXISTS MOVIMIENTOS_DE_STOCK (
-    movimiento_id INTEGER PRIMARY KEY,
-    product_id INTEGER NOT NULL,
-    puntos_de_venta_id INTEGER NOT NULL,
-    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    tipo VARCHAR(50) NOT NULL CHECK (tipo IN ('COMPRA', 'VENTA', 'VENTA_COMBO', 'AJUSTE', 'TRANSFERENCIA_ENTRADA', 'TRANSFERENCIA_SALIDA')),
-    cantidad_movida NUMERIC(12, 2) NOT NULL CHECK (cantidad_movida <> 0),
-    cantidad_restante NUMERIC(12, 2) NOT NULL CHECK (cantidad_restante >= 0),
-    -- Clave foránea compuesta apuntando al stock del producto en ese punto de venta
-    FOREIGN KEY (product_id, puntos_de_venta_id) REFERENCES STOCK(product_id, puntos_de_venta_id) ON UPDATE CASCADE ON DELETE RESTRICT
-);
-
--- 11. COMPRAS
+-- 8. COMPRAS
 CREATE TABLE IF NOT EXISTS COMPRAS (
     compra_id INTEGER PRIMARY KEY,
     proveedor_id INTEGER REFERENCES PROVEEDORES(proveedor_id) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -110,7 +79,7 @@ CREATE TABLE IF NOT EXISTS COMPRAS (
     total NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
 );
 
--- 12. DETALLE_COMPRAS
+-- 9. DETALLE_COMPRAS
 CREATE TABLE IF NOT EXISTS DETALLE_COMPRAS (
     detalle_compra_id INTEGER PRIMARY KEY,
     compra_id INTEGER NOT NULL REFERENCES COMPRAS(compra_id) ON UPDATE CASCADE ON DELETE CASCADE,
@@ -121,7 +90,7 @@ CREATE TABLE IF NOT EXISTS DETALLE_COMPRAS (
     CONSTRAINT chk_subtotal_compra CHECK (subtotal = cantidad * costo_unidad)
 );
 
--- 13. VENTAS
+-- 10. VENTAS
 CREATE TABLE IF NOT EXISTS VENTAS (
     venta_id INTEGER PRIMARY KEY,
     cliente_id INTEGER REFERENCES CLIENTES(cliente_id) ON UPDATE CASCADE ON DELETE SET NULL,
@@ -134,22 +103,16 @@ CREATE TABLE IF NOT EXISTS VENTAS (
     estado_entrega VARCHAR(50) NOT NULL DEFAULT 'PENDIENTE' CHECK (estado_entrega IN ('PENDIENTE', 'ENTREGADO'))
 );
 
--- 14. DETALLE_VENTAS
+-- 11. DETALLE_VENTAS
 CREATE TABLE IF NOT EXISTS DETALLE_VENTAS (
     detalle_venta_id INTEGER PRIMARY KEY,
     venta_id INTEGER NOT NULL REFERENCES VENTAS(venta_id) ON UPDATE CASCADE ON DELETE CASCADE,
-    product_id INTEGER REFERENCES PRODUCTOS(product_id) ON UPDATE CASCADE ON DELETE RESTRICT,
-    combo_id INTEGER REFERENCES COMBOS(combo_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    product_id INTEGER NOT NULL REFERENCES PRODUCTOS(product_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     cantidad NUMERIC(10, 2) NOT NULL CHECK (cantidad > 0),
     precio_unidad NUMERIC(12, 2) NOT NULL CHECK (precio_unidad >= 0),
     costo_unidad NUMERIC(12, 2) NOT NULL CHECK (costo_unidad >= 0),
     subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
     profit NUMERIC(12, 2) NOT NULL,
-    -- Restricción de exclusividad: un detalle debe ser de un producto o de un combo, pero no ambos ni ninguno
-    CONSTRAINT chk_exclusividad_detalle CHECK (
-        (product_id IS NOT NULL AND combo_id IS NULL) OR
-        (product_id IS NULL AND combo_id IS NOT NULL)
-    ),
     CONSTRAINT chk_subtotal_venta CHECK (subtotal = cantidad * precio_unidad),
     CONSTRAINT chk_profit_venta CHECK (profit = subtotal - (cantidad * costo_unidad))
 );

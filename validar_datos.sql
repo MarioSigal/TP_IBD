@@ -50,32 +50,12 @@ JOIN DETALLE_COMPRAS dc ON c.compra_id = dc.compra_id
 GROUP BY c.compra_id, c.total
 HAVING ABS(c.total - SUM(dc.subtotal)) > 0.01;
 
--- VALIDACIÓN D: Exclusividad en Detalle de Ventas (Producto o Combo)
--- Busca filas que rompan la restricción de que se debe vender un producto O un combo, pero no ambos ni ninguno.
-SELECT * 
-FROM DETALLE_VENTAS
-WHERE (product_id IS NULL AND combo_id IS NULL)
-   OR (product_id IS NOT NULL AND combo_id IS NOT NULL);
-
--- VALIDACIÓN E: Cuadre de stock real vs histórico de movimientos
--- Compara el stock actual registrado en la tabla STOCK con el stock inicial (200) más/menos movimientos de la sucursal.
-WITH HistoricoStock AS (
-    SELECT 
-        product_id, 
-        puntos_de_venta_id, 
-        200.00 + COALESCE(SUM(cantidad_movida), 0) AS stock_calculado
-    FROM MOVIMIENTOS_DE_STOCK
-    GROUP BY product_id, puntos_de_venta_id
-)
-SELECT 
-    s.product_id, 
-    s.puntos_de_venta_id, 
-    s.cantidad AS stock_tabla, 
-    h.stock_calculado,
-    ABS(s.cantidad - h.stock_calculado) AS diferencia
-FROM STOCK s
-JOIN HistoricoStock h ON s.product_id = h.product_id AND s.puntos_de_venta_id = h.puntos_de_venta_id
-WHERE ABS(s.cantidad - h.stock_calculado) > 0.01;
+-- VALIDACIÓN D: Integridad referencial de producto en Detalle de Ventas
+-- Busca filas cuyo product_id no exista en PRODUCTOS (no debería retornar ninguna).
+SELECT dv.*
+FROM DETALLE_VENTAS dv
+LEFT JOIN PRODUCTOS p ON p.product_id = dv.product_id
+WHERE p.product_id IS NULL;
 
 
 -- ============================================================================

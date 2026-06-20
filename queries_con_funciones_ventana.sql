@@ -50,9 +50,8 @@ WITH profit_por_producto AS (
         SUM(dv.subtotal)                 AS ingresos,
         SUM(dv.profit)                   AS profit_total
     FROM DETALLE_VENTAS dv
-    JOIN PRODUCTOS  p ON p.product_id   = dv.product_id   -- solo lineas de producto (no combos)
+    JOIN PRODUCTOS  p ON p.product_id   = dv.product_id
     JOIN CATEGORIAS c ON c.categoria_id = p.categoria_id
-    WHERE dv.product_id IS NOT NULL
     GROUP BY c.categoria_id, c.nombre, p.product_id, p.nombre
 ),
 ranking AS (
