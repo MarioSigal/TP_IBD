@@ -1,6 +1,12 @@
 import random
 import datetime
 import math
+import unicodedata
+
+
+def sin_acentos(s):
+    """Normaliza a ASCII (quita acentos/ñ) para construir emails válidos según el CHECK."""
+    return ''.join(c for c in unicodedata.normalize('NFKD', s) if not unicodedata.combining(c))
 
 # Intentar importar Faker, si no, usar generadores locales simples
 try:
@@ -153,8 +159,8 @@ def generar_datos_sql():
             }
             productos.append(prod_record)
             sql_lines.append(
-                f"INSERT INTO PRODUCTOS (product_id, sku, nombre, marca_id, categoria_id, unidad, descripccion_medida, sabor, costo_promedio, precio_normal, precio_fiel) "
-                f"VALUES ({prod_id}, {escape_sql(sku)}, {escape_sql(nombre_completo)}, {brand_id}, {cat_id}, {escape_sql(unidad)}, {escape_sql(medida)}, {escape_sql(sabor)}, {costo}, {precio_normal}, {precio_fiel}) "
+                f"INSERT INTO PRODUCTOS (product_id, sku, nombre, marca_id, categoria_id, unidad, descripccion_medida, ultimo_costo, precio_normal, precio_fiel) "
+                f"VALUES ({prod_id}, {escape_sql(sku)}, {escape_sql(nombre_completo)}, {brand_id}, {cat_id}, {escape_sql(unidad)}, {escape_sql(medida)}, {costo}, {precio_normal}, {precio_fiel}) "
                 f"ON CONFLICT DO NOTHING;"
             )
             prod_id += 1
@@ -174,8 +180,9 @@ def generar_datos_sql():
         else:
             nom = random.choice(nombres_fem)
         ape = random.choice(apellidos)
-        dni = str(random.randint(15000000, 48000000))
-        email = f"{nom.lower()}.{ape.lower()}{random.randint(10,999)}@gmail.com"
+        # dni y email derivados del indice i para garantizar unicidad (evita colisiones y ON CONFLICT skips)
+        dni = str(15000000 + i)
+        email = f"{sin_acentos(nom.lower())}.{sin_acentos(ape.lower())}{i}@gmail.com"
         
         # Si Faker está disponible, usarlo para datos más realistas
         if fake:

@@ -8,38 +8,34 @@
 -- =====================================================================
 -- (a) PREGUNTA DE NEGOCIO:
 --     "Dentro de cada categoria de producto, ¿cuales son los 3 productos
---      que mas profit (ganancia) generaron, y que porcentaje del profit
---      total de su categoria representa cada uno?"
+--      que mas profit (ganancia) generaron?"
 --     Sirve para decidir surtido, negociacion con proveedores y donde
 --     concentrar promociones por categoria.
 --
 -- (b) POR QUE FUNCION DE VENTANA:
---     Necesitamos rankear y comparar cada producto CONTRA su categoria,
---     manteniendo el detalle por producto. Un GROUP BY por categoria
---     colapsaria la informacion y perderiamos el detalle de cada producto;
---     un GROUP BY por (categoria, producto) no permite, en la misma pasada,
---     calcular el ranking ni el porcentaje sobre el total de la categoria.
---     DENSE_RANK() OVER (PARTITION BY categoria ORDER BY profit DESC) y
---     SUM() OVER (PARTITION BY categoria) resuelven ambas cosas a la vez.
+--     Necesitamos rankear cada producto DENTRO de su categoria, manteniendo
+--     el detalle por producto. Un GROUP BY por categoria colapsaria la
+--     informacion y perderiamos el detalle de cada producto; un GROUP BY por
+--     (categoria, producto) no permite, en la misma pasada, calcular el
+--     ranking dentro de cada categoria.
+--     DENSE_RANK() OVER (PARTITION BY categoria ORDER BY profit DESC)
+--     resuelve el ranking sin colapsar las filas.
 --
 -- (c) RESULTADO ESPERADO:
 --     Una fila por producto con ventas, ordenado por categoria y posicion.
---     Filtramos al top 3 de cada categoria. La columna pct_profit_categoria
---     muestra cuanto pesa ese producto en la ganancia de su categoria
---     (ej: un producto "estrella" puede concentrar >40% del profit).
+--     Filtramos al top 3 de cada categoria. Como usamos DENSE_RANK, si hay
+--     empates en una posicion pueden aparecer mas de 3 productos por
+--     categoria (todos los que comparten las primeras 3 posiciones).
 --
 -- >>> POR QUE SE NECESITA FUNCION DE VENTANA Y NO ALCANZA UN GROUP BY <<<
---     El ranking (posicion_en_categoria) y el porcentaje sobre el total de
---     la categoria (pct_profit_categoria) son metricas a NIVEL GRUPO
---     (categoria), pero deben mostrarse en CADA fila de producto. Un GROUP BY
---     por categoria devuelve una sola fila por categoria: para conocer el % de
---     un producto haria falta el total de la categoria Y el detalle del
---     producto en la misma fila, dos granularidades distintas que GROUP BY no
---     puede combinar en una pasada. Hoy se resolveria con una subconsulta
---     correlacionada o un self-join extra por cada metrica; ademas, no existe
---     ninguna funcion de agregacion clasica que produzca un "ranking" (RANK/
+--     El ranking (posicion_en_categoria) es una metrica a NIVEL GRUPO
+--     (categoria) que ordena los productos entre si, pero debe mostrarse en
+--     CADA fila de producto. Un GROUP BY por categoria devuelve una sola fila
+--     por categoria y colapsa el detalle de los productos, por lo que no
+--     puede asignar una posicion a cada uno. Ademas, no existe ninguna
+--     funcion de agregacion clasica que produzca un "ranking" (RANK/
 --     DENSE_RANK solo existen como funciones de ventana). PARTITION BY agrupa
---     SIN colapsar, devolviendo el agregado de la categoria junto al detalle.
+--     SIN colapsar, devolviendo el ranking de la categoria junto al detalle.
 WITH profit_por_producto AS (
     SELECT
         c.categoria_id,
@@ -65,13 +61,7 @@ ranking AS (
         DENSE_RANK() OVER (
             PARTITION BY categoria_id
             ORDER BY profit_total DESC
-        ) AS posicion_en_categoria,
-        -- Participacion del producto en el profit total de su categoria
-        ROUND(
-            100.0 * profit_total
-            / NULLIF(SUM(profit_total) OVER (PARTITION BY categoria_id), 0),
-            2
-        ) AS pct_profit_categoria
+        ) AS posicion_en_categoria
     FROM profit_por_producto
 )
 SELECT
@@ -80,8 +70,7 @@ SELECT
     producto,
     unidades_vendidas,
     ingresos,
-    profit_total,
-    pct_profit_categoria
+    profit_total
 FROM ranking
 WHERE posicion_en_categoria <= 3
 ORDER BY categoria, posicion_en_categoria;
@@ -129,7 +118,8 @@ ORDER BY categoria, posicion_en_categoria;
 --     del cliente y calcula cada metrica fila por fila sin colapsarlas.
 SELECT
     c.cliente_id,
-    c.apellido || ', ' || c.nombre                 AS cliente,
+    c.nombre,
+    c.apellido,
     v.venta_id,
     v.fecha,
     v.precio_total,

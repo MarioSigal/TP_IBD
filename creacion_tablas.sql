@@ -27,8 +27,7 @@ CREATE TABLE IF NOT EXISTS PRODUCTOS (
     categoria_id INTEGER NOT NULL REFERENCES CATEGORIAS(categoria_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     unidad VARCHAR(50) NOT NULL DEFAULT 'unidad' CHECK (LENGTH(TRIM(unidad)) > 0),
     descripccion_medida VARCHAR(100), -- Nombre de columna según la typo del diagrama original (descripccion con doble c)
-    sabor VARCHAR(100),
-    costo_promedio NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (costo_promedio >= 0),
+    ultimo_costo NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (ultimo_costo >= 0), --es el ultimo costo registrado en compras, se actualiza con cada compra nueva. Al hacer una venta, este es el costo del producto.
     precio_normal NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_normal >= 0),
     precio_fiel NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_fiel >= 0),
     CONSTRAINT chk_precios_producto CHECK (precio_fiel <= precio_normal)
