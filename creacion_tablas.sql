@@ -28,9 +28,7 @@ CREATE TABLE IF NOT EXISTS PRODUCTOS (
     unidad VARCHAR(50) NOT NULL DEFAULT 'unidad' CHECK (LENGTH(TRIM(unidad)) > 0),
     descripcion_medida VARCHAR(100),
     ultimo_costo NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (ultimo_costo >= 0), --es el ultimo costo registrado en compras, se actualiza con cada compra nueva. Al hacer una venta, este es el costo del producto.
-    precio_normal NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_normal >= 0),
-    precio_fiel NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_fiel >= 0),
-    CONSTRAINT chk_precios_producto CHECK (precio_fiel <= precio_normal)
+    precio NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio >= 0) --precio de venta unico del producto
 );
 
 -- 4. PROVEEDORES
@@ -53,8 +51,7 @@ CREATE TABLE IF NOT EXISTS CLIENTES (
     nombre VARCHAR(100) NOT NULL CHECK (LENGTH(TRIM(nombre)) > 0),
     apellido VARCHAR(100) NOT NULL CHECK (LENGTH(TRIM(apellido)) > 0),
     dni VARCHAR(20) NOT NULL UNIQUE CHECK (LENGTH(TRIM(dni)) > 0),
-    email VARCHAR(150) UNIQUE CHECK (email IS NULL OR email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$'),
-    es_cliente_fiel BOOLEAN NOT NULL DEFAULT FALSE
+    email VARCHAR(150) UNIQUE CHECK (email IS NULL OR email ~* '^[^@\s]+@[^@\s]+\.[^@\s]+$')
 );
 
 -- 7. STOCK (Asociativa M:N entre PRODUCTOS y PUNTOS_DE_VENTA)
@@ -74,8 +71,8 @@ CREATE TABLE IF NOT EXISTS COMPRAS (
     puntos_de_venta_id INTEGER NOT NULL REFERENCES PUNTOS_DE_VENTA(puntos_de_venta_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     hora TIME NOT NULL DEFAULT CURRENT_TIME,
-    numero_factura VARCHAR(50),
-    total NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (total >= 0)
+    numero_factura VARCHAR(50)
+    -- total eliminado: es derivable como SUM(detalle_compras.cantidad * costo_unidad)
 );
 
 -- 9. DETALLE_COMPRAS
@@ -84,9 +81,8 @@ CREATE TABLE IF NOT EXISTS DETALLE_COMPRAS (
     compra_id INTEGER NOT NULL REFERENCES COMPRAS(compra_id) ON UPDATE CASCADE ON DELETE CASCADE,
     product_id INTEGER NOT NULL REFERENCES PRODUCTOS(product_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     cantidad NUMERIC(10, 2) NOT NULL CHECK (cantidad > 0),
-    costo_unidad NUMERIC(12, 2) NOT NULL CHECK (costo_unidad >= 0),
-    subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
-    CONSTRAINT chk_subtotal_compra CHECK (subtotal = cantidad * costo_unidad)
+    costo_unidad NUMERIC(12, 2) NOT NULL CHECK (costo_unidad >= 0)
+    -- subtotal eliminado: es derivable como cantidad * costo_unidad
 );
 
 -- 10. VENTAS
@@ -96,10 +92,9 @@ CREATE TABLE IF NOT EXISTS VENTAS (
     puntos_de_venta_id INTEGER NOT NULL REFERENCES PUNTOS_DE_VENTA(puntos_de_venta_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
     hora TIME NOT NULL DEFAULT CURRENT_TIME,
-    precio_total NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_total >= 0),
-    costo_total NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (costo_total >= 0),
-    metodo_pago VARCHAR(50) NOT NULL CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA_CREDITO', 'TARJETA_DEBITO', 'MERCADOPAGO', 'OTRO')),
-    estado_entrega VARCHAR(50) NOT NULL DEFAULT 'PENDIENTE' CHECK (estado_entrega IN ('PENDIENTE', 'ENTREGADO'))
+    metodo_pago VARCHAR(50) NOT NULL CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA_CREDITO', 'TARJETA_DEBITO', 'MERCADOPAGO', 'OTRO'))
+    -- precio_total y costo_total eliminados: derivables del detalle (SUM de cantidad*precio_unidad y cantidad*costo_unidad)
+    -- estado_entrega eliminado del modelo
 );
 
 -- 11. DETALLE_VENTAS
@@ -109,9 +104,7 @@ CREATE TABLE IF NOT EXISTS DETALLE_VENTAS (
     product_id INTEGER NOT NULL REFERENCES PRODUCTOS(product_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     cantidad NUMERIC(10, 2) NOT NULL CHECK (cantidad > 0),
     precio_unidad NUMERIC(12, 2) NOT NULL CHECK (precio_unidad >= 0),
-    costo_unidad NUMERIC(12, 2) NOT NULL CHECK (costo_unidad >= 0),
-    subtotal NUMERIC(12, 2) NOT NULL CHECK (subtotal >= 0),
-    profit NUMERIC(12, 2) NOT NULL,
-    CONSTRAINT chk_subtotal_venta CHECK (subtotal = cantidad * precio_unidad),
-    CONSTRAINT chk_profit_venta CHECK (profit = subtotal - (cantidad * costo_unidad))
+    costo_unidad NUMERIC(12, 2) NOT NULL CHECK (costo_unidad >= 0)
+    -- subtotal eliminado: derivable como cantidad * precio_unidad
+    -- profit eliminado: derivable como cantidad * (precio_unidad - costo_unidad)
 );

@@ -124,26 +124,24 @@ def generar_datos_sql():
         plantillas_seleccionadas = random.sample(PRODUCTOS_PLANTILLA, k=random.randint(8, 11))
         for nombre_base, cat_id, unidad, med_default, costo_base, precio_base in plantillas_seleccionadas:
             medida = random.choice(MEDIDAS) if "kg" not in nombre_base else med_default
-            sabor = random.choice(SABORES) if cat_id in [1, 3, 5] else "Sin Sabor"
-            
+
             # Ajustar precios si es importado
             costo = costo_base * (1.5 if is_imp else 1.0) * random.uniform(0.9, 1.1)
-            precio_normal = precio_base * (1.5 if is_imp else 1.0) * random.uniform(0.95, 1.15)
-            # Asegurar consistencia de profit y precios no negativos
+            precio = precio_base * (1.5 if is_imp else 1.0) * random.uniform(0.95, 1.15)
+            # Asegurar precios no negativos y al menos 10% de markup sobre el costo
             costo = round(costo, 2)
-            precio_normal = max(round(precio_normal, 2), round(costo * 1.1, 2)) # al menos 10% de markup
-            precio_fiel = round(precio_normal * random.uniform(0.88, 0.95), 2)  # entre 5% y 12% de descuento para clientes fieles
-            
-            nombre_completo = f"{brand_name} {nombre_base} ({sabor}, {medida})"
-            # SKU: BRAND-NAME-MEDIDA-SABOR
+            precio = max(round(precio, 2), round(costo * 1.1, 2))
+
+            # El sabor ya no es un atributo del modelo: el nombre no lo incluye
+            nombre_completo = f"{brand_name} {nombre_base} ({medida})"
+            # SKU: BRAND-NAME-MEDIDA (el sufijo prod_id garantiza unicidad)
             sku_parts = [
                 brand_name.upper().replace(" ", "")[:4],
                 nombre_base.upper().replace(" ", "").replace("100%", "")[:6],
                 medida.upper().replace(" ", "")[:4],
-                sabor.upper()[:4]
             ]
             sku = "-".join(sku_parts) + f"-{prod_id}"
-            
+
             prod_record = {
                 'product_id': prod_id,
                 'sku': sku,
@@ -152,15 +150,13 @@ def generar_datos_sql():
                 'categoria_id': cat_id,
                 'unidad': unidad,
                 'descripcion_medida': medida,
-                'sabor': sabor,
                 'costo_promedio': costo,
-                'precio_normal': precio_normal,
-                'precio_fiel': precio_fiel
+                'precio': precio
             }
             productos.append(prod_record)
             sql_lines.append(
-                f"INSERT INTO PRODUCTOS (product_id, sku, nombre, marca_id, categoria_id, unidad, descripcion_medida, ultimo_costo, precio_normal, precio_fiel) "
-                f"VALUES ({prod_id}, {escape_sql(sku)}, {escape_sql(nombre_completo)}, {brand_id}, {cat_id}, {escape_sql(unidad)}, {escape_sql(medida)}, {costo}, {precio_normal}, {precio_fiel}) "
+                f"INSERT INTO PRODUCTOS (product_id, sku, nombre, marca_id, categoria_id, unidad, descripcion_medida, ultimo_costo, precio) "
+                f"VALUES ({prod_id}, {escape_sql(sku)}, {escape_sql(nombre_completo)}, {brand_id}, {cat_id}, {escape_sql(unidad)}, {escape_sql(medida)}, {costo}, {precio}) "
                 f"ON CONFLICT DO NOTHING;"
             )
             prod_id += 1
@@ -174,7 +170,6 @@ def generar_datos_sql():
     apellidos = ["González", "Rodríguez", "Gómez", "Fernández", "López", "Díaz", "Martínez", "Pérez", "Romero", "Sánchez", "Álvarez", "Ruiz", "Torres", "Acosta", "Silva"]
     
     for i in range(1, 1501): # Vamos a generar 1500 clientes
-        is_fiel = random.random() < 0.18 # 18% son clientes fieles
         if random.random() < 0.5:
             nom = random.choice(nombres_masc)
         else:
@@ -200,12 +195,11 @@ def generar_datos_sql():
             'apellido': ape,
             'dni': dni,
             'email': email,
-            'es_cliente_fiel': is_fiel
         }
         clientes.append(cliente_record)
         sql_lines.append(
-            f"INSERT INTO CLIENTES (cliente_id, nombre, apellido, dni, email, es_cliente_fiel) "
-            f"VALUES ({i}, {escape_sql(nom)}, {escape_sql(ape)}, {escape_sql(dni)}, {escape_sql(email)}, {escape_sql(is_fiel)}) ON CONFLICT DO NOTHING;"
+            f"INSERT INTO CLIENTES (cliente_id, nombre, apellido, dni, email) "
+            f"VALUES ({i}, {escape_sql(nom)}, {escape_sql(ape)}, {escape_sql(dni)}, {escape_sql(email)}) ON CONFLICT DO NOTHING;"
         )
 
     # 5. STOCK INICIAL
@@ -252,29 +246,26 @@ def generar_datos_sql():
         num_items = random.randint(4, 8)
         items_compra = random.sample(productos, k=num_items)
         
-        total_compra = 0.00
         detalles_locales = []
-        
+
         for p in items_compra:
             qty = float(random.randint(30, 80))
             costo_un = p['costo_promedio'] # Usamos costo promedio del producto
-            subtot = round(qty * costo_un, 2)
-            total_compra += subtot
-            
+
             detalles_locales.append({
                 'detalle_compra_id': det_compra_id,
                 'compra_id': compra_id,
                 'product_id': p['product_id'],
                 'cantidad': qty,
                 'costo_unidad': costo_un,
-                'subtotal': subtot
             })
-            
+
             # La compra es una entrada de stock: actualizamos el saldo en memoria
             stock_actual[(p['product_id'], pv_id)] += qty
 
             det_compra_id += 1
-            
+
+        # total eliminado del modelo: es derivable como SUM(cantidad * costo_unidad) del detalle
         compras.append({
             'compra_id': compra_id,
             'proveedor_id': prov_id,
@@ -282,7 +273,6 @@ def generar_datos_sql():
             'fecha': fecha_compra,
             'hora': hora_compra,
             'numero_factura': factura_num,
-            'total': round(total_compra, 2)
         })
         
         detalle_compras.extend(detalles_locales)
@@ -302,15 +292,11 @@ def generar_datos_sql():
         
         cliente = random.choice(clientes)
         cli_id = cliente['cliente_id']
-        es_fiel = cliente['es_cliente_fiel']
         pv_id = random.choice(PUNTOS_DE_VENTA)[0]
         metodo = random.choice(METODOS_PAGO)
-        estado = random.choice(ESTADOS_ENTREGA)
-        
+
         # Detalle de venta: de 1 a 4 productos
         num_items = random.randint(1, 4)
-        total_venta = 0.00
-        costo_total_v = 0.00
 
         detalles_locales = []
 
@@ -318,13 +304,8 @@ def generar_datos_sql():
             # Venta de un Producto individual
             p = random.choice(productos)
             qty = float(random.randint(1, 3))
-            precio_un = p['precio_fiel'] if es_fiel else p['precio_normal']
-            subtot = round(qty * precio_un, 2)
+            precio_un = p['precio']            # precio de venta unico (sin distincion fiel/normal)
             costo_un = p['costo_promedio']
-            profit = round(subtot - (qty * costo_un), 2)
-
-            total_venta += subtot
-            costo_total_v += round(qty * costo_un, 2)
 
             detalles_locales.append({
                 'detalle_venta_id': det_venta_id,
@@ -333,25 +314,22 @@ def generar_datos_sql():
                 'cantidad': qty,
                 'precio_unidad': precio_un,
                 'costo_unidad': costo_un,
-                'subtotal': subtot,
-                'profit': profit
             })
 
             # Descontar stock de la sucursal (saldo en memoria)
             stock_actual[(p['product_id'], pv_id)] -= qty
 
             det_venta_id += 1
-            
+
+        # precio_total, costo_total y estado_entrega eliminados del modelo
+        # (los totales son derivables del detalle)
         ventas.append({
             'venta_id': venta_id,
             'cliente_id': cli_id,
             'puntos_de_venta_id': pv_id,
             'fecha': fecha_venta,
             'hora': hora_venta,
-            'precio_total': round(total_venta, 2),
-            'costo_total': round(costo_total_v, 2),
             'metodo_pago': metodo,
-            'estado_entrega': estado
         })
         detalle_ventas.extend(detalles_locales)
         venta_id += 1
@@ -369,30 +347,30 @@ def generar_datos_sql():
     sql_lines.append("\n-- === 8. COMPRAS ===")
     for c in compras:
         sql_lines.append(
-            f"INSERT INTO COMPRAS (compra_id, proveedor_id, puntos_de_venta_id, fecha, hora, numero_factura, total) "
-            f"VALUES ({c['compra_id']}, {c['proveedor_id']}, {c['puntos_de_venta_id']}, {escape_sql(c['fecha'])}, {escape_sql(c['hora'])}, {escape_sql(c['numero_factura'])}, {c['total']}) ON CONFLICT DO NOTHING;"
+            f"INSERT INTO COMPRAS (compra_id, proveedor_id, puntos_de_venta_id, fecha, hora, numero_factura) "
+            f"VALUES ({c['compra_id']}, {c['proveedor_id']}, {c['puntos_de_venta_id']}, {escape_sql(c['fecha'])}, {escape_sql(c['hora'])}, {escape_sql(c['numero_factura'])}) ON CONFLICT DO NOTHING;"
         )
 
     sql_lines.append("\n-- === 9. DETALLE_COMPRAS ===")
     for dc in detalle_compras:
         sql_lines.append(
-            f"INSERT INTO DETALLE_COMPRAS (detalle_compra_id, compra_id, product_id, cantidad, costo_unidad, subtotal) "
-            f"VALUES ({dc['detalle_compra_id']}, {dc['compra_id']}, {dc['product_id']}, {dc['cantidad']}, {dc['costo_unidad']}, {dc['subtotal']}) ON CONFLICT DO NOTHING;"
+            f"INSERT INTO DETALLE_COMPRAS (detalle_compra_id, compra_id, product_id, cantidad, costo_unidad) "
+            f"VALUES ({dc['detalle_compra_id']}, {dc['compra_id']}, {dc['product_id']}, {dc['cantidad']}, {dc['costo_unidad']}) ON CONFLICT DO NOTHING;"
         )
 
     # 10. ESCRIBIR VENTAS Y DETALLES
     sql_lines.append("\n-- === 10. VENTAS ===")
     for v in ventas:
         sql_lines.append(
-            f"INSERT INTO VENTAS (venta_id, cliente_id, puntos_de_venta_id, fecha, hora, precio_total, costo_total, metodo_pago, estado_entrega) "
-            f"VALUES ({v['venta_id']}, {v['cliente_id']}, {v['puntos_de_venta_id']}, {escape_sql(v['fecha'])}, {escape_sql(v['hora'])}, {v['precio_total']}, {v['costo_total']}, {escape_sql(v['metodo_pago'])}, {escape_sql(v['estado_entrega'])}) ON CONFLICT DO NOTHING;"
+            f"INSERT INTO VENTAS (venta_id, cliente_id, puntos_de_venta_id, fecha, hora, metodo_pago) "
+            f"VALUES ({v['venta_id']}, {v['cliente_id']}, {v['puntos_de_venta_id']}, {escape_sql(v['fecha'])}, {escape_sql(v['hora'])}, {escape_sql(v['metodo_pago'])}) ON CONFLICT DO NOTHING;"
         )
 
     sql_lines.append("\n-- === 11. DETALLE_VENTAS ===")
     for dv in detalle_ventas:
         sql_lines.append(
-            f"INSERT INTO DETALLE_VENTAS (detalle_venta_id, venta_id, product_id, cantidad, precio_unidad, costo_unidad, subtotal, profit) "
-            f"VALUES ({dv['detalle_venta_id']}, {dv['venta_id']}, {dv['product_id']}, {dv['cantidad']}, {dv['precio_unidad']}, {dv['costo_unidad']}, {dv['subtotal']}, {dv['profit']}) ON CONFLICT DO NOTHING;"
+            f"INSERT INTO DETALLE_VENTAS (detalle_venta_id, venta_id, product_id, cantidad, precio_unidad, costo_unidad) "
+            f"VALUES ({dv['detalle_venta_id']}, {dv['venta_id']}, {dv['product_id']}, {dv['cantidad']}, {dv['precio_unidad']}, {dv['costo_unidad']}) ON CONFLICT DO NOTHING;"
         )
 
     # --- GUARDAR ARCHIVO SQL ---

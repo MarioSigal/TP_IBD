@@ -4,10 +4,15 @@
 -- =====================================================================
 -- Dominio: comercio minorista. Tabla analizada: VENTAS.
 --
--- Se eligio VENTAS porque combina los tres perfiles de columna que pide la
--- consigna:
---   * Numericas:    precio_total, costo_total.
---   * Categoricas:  metodo_pago, estado_entrega.
+-- IMPORTANTE (nuevo modelo): VENTAS ya NO almacena precio_total ni
+-- costo_total (son derivables del detalle) y se elimino estado_entrega.
+-- Por eso TODAS las consultas parten de una CTE 'ventas_ext' que reconstruye
+-- esos totales por venta a partir de DETALLE_VENTAS. Esto cumple ademas el
+-- requisito de usar Common Table Expressions (WITH).
+--
+-- 'ventas_ext' combina los tres perfiles de columna que pide la consigna:
+--   * Numericas:    precio_total, costo_total (calculadas).
+--   * Categoricas:  metodo_pago, puntos_de_venta_id (sucursal).
 --   * Nullable:     cliente_id (ventas sin cliente identificado), util para
 --                   que el porcentaje de no-nulos de C1 no sea siempre 100%.
 -- =====================================================================
@@ -16,46 +21,51 @@
 -- =====================================================================
 -- C1: Perfil general de CADA columna
 -- =====================================================================
--- Para cada columna informa:
---   * cantidad total de filas de la tabla,
---   * cantidad de filas con valor no nulo,
---   * porcentaje de filas con valor no nulo,
---   * cantidad de valores diferentes (distintos).
---
--- Tecnica: como cada columna tiene un tipo distinto, se calcula el perfil
--- por columna y se apilan los resultados con UNION ALL en formato "largo"
--- (una fila por columna). COUNT(col) ignora NULLs, mientras que COUNT(*)
--- cuenta todas las filas: la diferencia entre ambos es la cantidad de NULLs.
-WITH perfil_columnas AS (
+-- Para cada columna informa: cantidad total de filas, filas no nulas,
+-- porcentaje de filas no nulas y cantidad de valores diferentes.
+-- COUNT(col) ignora NULLs y COUNT(*) cuenta todo: su diferencia son los NULLs.
+WITH ventas_ext AS (
+    -- Reconstruye los totales por venta desde el detalle (ya no son columnas)
+    SELECT
+        v.venta_id,
+        v.cliente_id,
+        v.puntos_de_venta_id,
+        v.fecha,
+        v.hora,
+        v.metodo_pago,
+        SUM(dv.cantidad * dv.precio_unidad)                     AS precio_total,
+        SUM(dv.cantidad * dv.costo_unidad)                      AS costo_total
+    FROM VENTAS v
+    JOIN DETALLE_VENTAS dv ON dv.venta_id = v.venta_id
+    GROUP BY v.venta_id, v.cliente_id, v.puntos_de_venta_id, v.fecha, v.hora, v.metodo_pago
+),
+perfil_columnas AS (
     SELECT 'venta_id'           AS columna, 1 AS orden,
            COUNT(*)             AS total_filas,
            COUNT(venta_id)      AS no_nulos,
            COUNT(DISTINCT venta_id) AS valores_distintos
-    FROM VENTAS
+    FROM ventas_ext
     UNION ALL
     SELECT 'cliente_id', 2,
-           COUNT(*), COUNT(cliente_id), COUNT(DISTINCT cliente_id) FROM VENTAS
+           COUNT(*), COUNT(cliente_id), COUNT(DISTINCT cliente_id) FROM ventas_ext
     UNION ALL
     SELECT 'puntos_de_venta_id', 3,
-           COUNT(*), COUNT(puntos_de_venta_id), COUNT(DISTINCT puntos_de_venta_id) FROM VENTAS
+           COUNT(*), COUNT(puntos_de_venta_id), COUNT(DISTINCT puntos_de_venta_id) FROM ventas_ext
     UNION ALL
     SELECT 'fecha', 4,
-           COUNT(*), COUNT(fecha), COUNT(DISTINCT fecha) FROM VENTAS
+           COUNT(*), COUNT(fecha), COUNT(DISTINCT fecha) FROM ventas_ext
     UNION ALL
     SELECT 'hora', 5,
-           COUNT(*), COUNT(hora), COUNT(DISTINCT hora) FROM VENTAS
+           COUNT(*), COUNT(hora), COUNT(DISTINCT hora) FROM ventas_ext
     UNION ALL
-    SELECT 'precio_total', 6,
-           COUNT(*), COUNT(precio_total), COUNT(DISTINCT precio_total) FROM VENTAS
+    SELECT 'metodo_pago', 6,
+           COUNT(*), COUNT(metodo_pago), COUNT(DISTINCT metodo_pago) FROM ventas_ext
     UNION ALL
-    SELECT 'costo_total', 7,
-           COUNT(*), COUNT(costo_total), COUNT(DISTINCT costo_total) FROM VENTAS
+    SELECT 'precio_total', 7,
+           COUNT(*), COUNT(precio_total), COUNT(DISTINCT precio_total) FROM ventas_ext
     UNION ALL
-    SELECT 'metodo_pago', 8,
-           COUNT(*), COUNT(metodo_pago), COUNT(DISTINCT metodo_pago) FROM VENTAS
-    UNION ALL
-    SELECT 'estado_entrega', 9,
-           COUNT(*), COUNT(estado_entrega), COUNT(DISTINCT estado_entrega) FROM VENTAS
+    SELECT 'costo_total', 8,
+           COUNT(*), COUNT(costo_total), COUNT(DISTINCT costo_total) FROM ventas_ext
 )
 SELECT
     columna,
@@ -70,25 +80,29 @@ ORDER BY orden;
 -- =====================================================================
 -- C2: Estadisticos descriptivos de las columnas NUMERICAS
 -- =====================================================================
--- Para precio_total y costo_total informa: desvio estandar, minimo, P05,
--- primer cuartil (Q1), mediana, promedio, tercer cuartil (Q3), P95, maximo,
--- cantidad y porcentaje de ceros, cantidad y porcentaje de negativos y
--- cantidad de outliers.
+-- Para precio_total y costo_total (calculadas por venta): desvio estandar,
+-- minimo, P05, Q1, mediana, promedio, Q3, P95, maximo, cantidad y porcentaje
+-- de ceros, cantidad y porcentaje de negativos y cantidad de outliers.
 --
 -- Tecnica:
---   1. Se "despivotan" las columnas numericas a formato largo (columna, valor)
---      con UNION ALL, de modo de calcular los estadisticos de ambas en una
---      sola pasada agrupando por 'columna'.
---   2. Los percentiles se calculan con PERCENTILE_CONT (interpolado) como
---      funciones de conjunto ordenado: PERCENTILE_CONT(p) WITHIN GROUP (...).
---   3. Outliers por la regla de Tukey (rango intercuartilico): se consideran
---      atipicos los valores fuera de [Q1 - 1.5*IQR ; Q3 + 1.5*IQR], con
---      IQR = Q3 - Q1. Los limites se precalculan en la CTE 'limites' y se
---      reutilizan con COUNT(*) FILTER para contar cuantos los exceden.
-WITH valores_numericos AS (
-    SELECT 'precio_total' AS columna, precio_total AS valor FROM VENTAS
+--   1. ventas_ext reconstruye los totales por venta.
+--   2. Se "despivotan" las dos columnas numericas a formato largo
+--      (columna, valor) con UNION ALL, para calcular ambas en una sola pasada.
+--   3. Percentiles con PERCENTILE_CONT (interpolado).
+--   4. Outliers por la regla de Tukey: fuera de [Q1 - 1.5*IQR ; Q3 + 1.5*IQR].
+WITH ventas_ext AS (
+    SELECT
+        v.venta_id,
+        SUM(dv.cantidad * dv.precio_unidad) AS precio_total,
+        SUM(dv.cantidad * dv.costo_unidad)  AS costo_total
+    FROM VENTAS v
+    JOIN DETALLE_VENTAS dv ON dv.venta_id = v.venta_id
+    GROUP BY v.venta_id
+),
+valores_numericos AS (
+    SELECT 'precio_total' AS columna, precio_total AS valor FROM ventas_ext
     UNION ALL
-    SELECT 'costo_total',            costo_total          FROM VENTAS
+    SELECT 'costo_total',            costo_total          FROM ventas_ext
 ),
 limites AS (
     -- Cuartiles e IQR por columna, base para detectar outliers
@@ -136,13 +150,14 @@ ORDER BY v.columna;
 -- (de mayor a menor frecuencia) con su frecuencia y porcentaje, y agrupa
 -- todo lo que queda por debajo del top 10 en una unica fila '(resto)'.
 --
+-- Como VENTAS ya no tiene estado_entrega, las dos columnas categoricas
+-- analizadas son metodo_pago y puntos_de_venta_id (la sucursal).
+--
 -- Tecnica:
 --   1. CTE 'conteo': frecuencia por valor (GROUP BY).
---   2. CTE 'ranked': ROW_NUMBER() ordena los valores por frecuencia desc y
---      SUM(frec) OVER () guarda el total de filas para calcular porcentajes.
---   3. SELECT final: los valores con rn <= 10 quedan individuales; el resto
---      se colapsa en la etiqueta '(resto)'. Si la columna tiene <= 10 valores
---      distintos (como aca), '(resto)' simplemente no aparece.
+--   2. CTE 'ranked': ROW_NUMBER() ordena por frecuencia desc y
+--      SUM(frec) OVER () guarda el total de filas para los porcentajes.
+--   3. SELECT final: rn <= 10 quedan individuales; el resto -> '(resto)'.
 --
 -- ---- C3.a: metodo_pago ----
 WITH conteo AS (
@@ -167,11 +182,11 @@ FROM ranked
 GROUP BY CASE WHEN rn <= 10 THEN valor ELSE '(resto)' END
 ORDER BY frecuencia DESC;
 
--- ---- C3.b: estado_entrega ----
+-- ---- C3.b: puntos_de_venta_id (sucursal) ----
 WITH conteo AS (
-    SELECT estado_entrega AS valor, COUNT(*) AS frecuencia
+    SELECT puntos_de_venta_id::text AS valor, COUNT(*) AS frecuencia
     FROM VENTAS
-    GROUP BY estado_entrega
+    GROUP BY puntos_de_venta_id
 ),
 ranked AS (
     SELECT
@@ -182,7 +197,7 @@ ranked AS (
     FROM conteo
 )
 SELECT
-    'estado_entrega' AS columna,
+    'puntos_de_venta_id' AS columna,
     CASE WHEN rn <= 10 THEN valor ELSE '(resto)' END AS valor,
     SUM(frecuencia)                                  AS frecuencia,
     ROUND(100.0 * SUM(frecuencia) / MAX(total), 2)   AS porcentaje

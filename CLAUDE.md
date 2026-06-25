@@ -64,8 +64,14 @@ Para validar un notebook headless (como se hace al iterar):
   (`create_index_23.sql`), como propuesta de optimización analizada con EXPLAIN.
 - Strings de salida/datos generalmente **sin acentos** en código y prints (evita problemas de
   encoding y respeta el `CHECK` de emails en `clientes`).
-- Los **constraints de negocio** viven en `creacion_tablas.sql` (CHECKs: precios ≥ 0,
-  `precio_fiel ≤ precio_normal`, `subtotal = cantidad * precio`, `profit = subtotal - costo`, etc.).
+- Los **constraints de negocio** viven en `creacion_tablas.sql` (CHECKs: precios/costos ≥ 0,
+  `cantidad > 0`, enumerados de `metodo_pago`, formato de email, etc.).
+- **Modelo simplificado (cambio reciente):** se eliminó la lógica fiel/normal y los atributos
+  derivables. `PRODUCTOS` tiene un único `precio` (ya no `precio_normal`/`precio_fiel`);
+  `CLIENTES` ya no tiene `es_cliente_fiel`; `VENTAS` ya no tiene `precio_total`/`costo_total`/
+  `estado_entrega`; `DETALLE_VENTAS` ya no tiene `subtotal`/`profit`; `COMPRAS` ya no tiene
+  `total` y `DETALLE_COMPRAS` ya no tiene `subtotal`. Todos los montos se calculan al vuelo
+  (`cantidad * precio_unidad`, `cantidad * (precio_unidad - costo_unidad)`, etc.).
 - `generar_datos.py` mantiene **todos los datos en memoria** antes de escribir el `.sql`
   (listas `ventas`, `detalle_ventas`, `productos`, …). Reutilizar esa fuente si se necesitan CSVs.
 - Notebooks: **idempotentes** y se entregan **con outputs ejecutados** (sirven de evidencia
