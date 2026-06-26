@@ -56,11 +56,12 @@ WITH ventas_ext AS (
     SELECT
         v.venta_id,
         v.cliente_id,
-        v.metodo_pago,
+        mp.nombre AS metodo_pago,
         SUM(dv.cantidad * dv.precio_unidad) AS precio_total
     FROM VENTAS v
     JOIN DETALLE_VENTAS dv ON dv.venta_id = v.venta_id
-    GROUP BY v.venta_id, v.cliente_id, v.metodo_pago
+    JOIN METODOS_PAGO  mp ON mp.metodo_pago_id = v.metodo_pago_id
+    GROUP BY v.venta_id, v.cliente_id, mp.nombre
 )
 SELECT
     COUNT(*) AS total_registros,
@@ -131,15 +132,17 @@ SELECT
 FROM LimitesOutliers;
 
 
--- CONSULTA C3: Estadisticos categoricos (metodo_pago en VENTAS)
+-- CONSULTA C3: Estadisticos categoricos (metodo de pago)
+-- metodo_pago ahora es una entidad: se resuelve el nombre via JOIN a METODOS_PAGO.
 -- Frecuencia y porcentaje de participacion de cada categoria, de mayor a menor.
 WITH PagoFrecuencias AS (
     SELECT
-        metodo_pago,
+        mp.nombre AS metodo_pago,
         COUNT(*) AS Frecuencia,
         COUNT(*) * 100.0 / (SELECT COUNT(*) FROM VENTAS) AS Porcentaje
-    FROM VENTAS
-    GROUP BY metodo_pago
+    FROM VENTAS v
+    JOIN METODOS_PAGO mp ON mp.metodo_pago_id = v.metodo_pago_id
+    GROUP BY mp.nombre
 )
 SELECT
     COALESCE(metodo_pago, 'NULO/DESCONOCIDO') AS Categoria,

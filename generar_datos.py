@@ -75,7 +75,16 @@ PROVEEDORES = [
     (6, "Suplementos Deportivos Importados", "30-71112223-9")
 ]
 
-METODOS_PAGO = ["EFECTIVO", "TRANSFERENCIA", "TARJETA_CREDITO", "TARJETA_DEBITO", "MERCADOPAGO", "OTRO"]
+# Metodos de pago: ahora son una entidad propia (catalogo), no un ENUM.
+# (id, nombre) con id de carga manual, igual que el resto de las maestras.
+METODOS_PAGO = [
+    (1, "EFECTIVO"),
+    (2, "TRANSFERENCIA"),
+    (3, "TARJETA_CREDITO"),
+    (4, "TARJETA_DEBITO"),
+    (5, "MERCADOPAGO"),
+    (6, "OTRO"),
+]
 ESTADOS_ENTREGA = ["PENDIENTE", "ENTREGADO"]
 
 def escape_sql(val):
@@ -109,6 +118,10 @@ def generar_datos_sql():
     sql_lines.append("\n-- === 5. PUNTOS_DE_VENTA ===")
     for pv in PUNTOS_DE_VENTA:
         sql_lines.append(f"INSERT INTO PUNTOS_DE_VENTA (puntos_de_venta_id, nombre, telefono) VALUES ({pv[0]}, {escape_sql(pv[1])}, {escape_sql(pv[2])}) ON CONFLICT DO NOTHING;")
+
+    sql_lines.append("\n-- === 5.b METODOS_PAGO ===")
+    for mp in METODOS_PAGO:
+        sql_lines.append(f"INSERT INTO METODOS_PAGO (metodo_pago_id, nombre) VALUES ({mp[0]}, {escape_sql(mp[1])}) ON CONFLICT DO NOTHING;")
 
     # 2. PRODUCTOS
     # Generar unos 120 productos combinando plantillas, marcas y sabores/medidas
@@ -293,7 +306,7 @@ def generar_datos_sql():
         cliente = random.choice(clientes)
         cli_id = cliente['cliente_id']
         pv_id = random.choice(PUNTOS_DE_VENTA)[0]
-        metodo = random.choice(METODOS_PAGO)
+        metodo_id = random.choice(METODOS_PAGO)[0]   # FK a METODOS_PAGO
 
         # Detalle de venta: de 1 a 4 productos
         num_items = random.randint(1, 4)
@@ -329,7 +342,7 @@ def generar_datos_sql():
             'puntos_de_venta_id': pv_id,
             'fecha': fecha_venta,
             'hora': hora_venta,
-            'metodo_pago': metodo,
+            'metodo_pago_id': metodo_id,
         })
         detalle_ventas.extend(detalles_locales)
         venta_id += 1
@@ -362,8 +375,8 @@ def generar_datos_sql():
     sql_lines.append("\n-- === 10. VENTAS ===")
     for v in ventas:
         sql_lines.append(
-            f"INSERT INTO VENTAS (venta_id, cliente_id, puntos_de_venta_id, fecha, hora, metodo_pago) "
-            f"VALUES ({v['venta_id']}, {v['cliente_id']}, {v['puntos_de_venta_id']}, {escape_sql(v['fecha'])}, {escape_sql(v['hora'])}, {escape_sql(v['metodo_pago'])}) ON CONFLICT DO NOTHING;"
+            f"INSERT INTO VENTAS (venta_id, cliente_id, puntos_de_venta_id, metodo_pago_id, fecha, hora) "
+            f"VALUES ({v['venta_id']}, {v['cliente_id']}, {v['puntos_de_venta_id']}, {v['metodo_pago_id']}, {escape_sql(v['fecha'])}, {escape_sql(v['hora'])}) ON CONFLICT DO NOTHING;"
         )
 
     sql_lines.append("\n-- === 11. DETALLE_VENTAS ===")

@@ -32,12 +32,13 @@ WITH ventas_ext AS (
         v.puntos_de_venta_id,
         v.fecha,
         v.hora,
-        v.metodo_pago,
+        mp.nombre                                              AS metodo_pago,
         SUM(dv.cantidad * dv.precio_unidad)                     AS precio_total,
         SUM(dv.cantidad * dv.costo_unidad)                      AS costo_total
     FROM VENTAS v
     JOIN DETALLE_VENTAS dv ON dv.venta_id = v.venta_id
-    GROUP BY v.venta_id, v.cliente_id, v.puntos_de_venta_id, v.fecha, v.hora, v.metodo_pago
+    JOIN METODOS_PAGO  mp ON mp.metodo_pago_id = v.metodo_pago_id   -- metodo_pago ahora es una entidad
+    GROUP BY v.venta_id, v.cliente_id, v.puntos_de_venta_id, v.fecha, v.hora, mp.nombre
 ),
 perfil_columnas AS (
     SELECT 'venta_id'           AS columna, 1 AS orden,
@@ -161,9 +162,10 @@ ORDER BY v.columna;
 --
 -- ---- C3.a: metodo_pago ----
 WITH conteo AS (
-    SELECT metodo_pago AS valor, COUNT(*) AS frecuencia
-    FROM VENTAS
-    GROUP BY metodo_pago
+    SELECT mp.nombre AS valor, COUNT(*) AS frecuencia
+    FROM VENTAS v
+    JOIN METODOS_PAGO mp ON mp.metodo_pago_id = v.metodo_pago_id
+    GROUP BY mp.nombre
 ),
 ranked AS (
     SELECT

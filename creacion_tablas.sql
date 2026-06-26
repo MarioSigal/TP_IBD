@@ -85,19 +85,28 @@ CREATE TABLE IF NOT EXISTS DETALLE_COMPRAS (
     -- subtotal eliminado: es derivable como cantidad * costo_unidad
 );
 
--- 10. VENTAS
+-- 10. METODOS_PAGO (catalogo; reemplaza el atributo ENUM metodo_pago de VENTAS)
+-- Se modela como entidad propia en lugar de un CHECK IN (...): permite agregar
+-- o renombrar medios de pago sin alterar la tabla y evita un dominio ENUM rigido.
+CREATE TABLE IF NOT EXISTS METODOS_PAGO (
+    metodo_pago_id INTEGER PRIMARY KEY,
+    nombre VARCHAR(50) NOT NULL UNIQUE CHECK (LENGTH(TRIM(nombre)) > 0)
+);
+
+-- 11. VENTAS
 CREATE TABLE IF NOT EXISTS VENTAS (
     venta_id INTEGER PRIMARY KEY,
     cliente_id INTEGER REFERENCES CLIENTES(cliente_id) ON UPDATE CASCADE ON DELETE SET NULL,
     puntos_de_venta_id INTEGER NOT NULL REFERENCES PUNTOS_DE_VENTA(puntos_de_venta_id) ON UPDATE CASCADE ON DELETE RESTRICT,
+    metodo_pago_id INTEGER NOT NULL REFERENCES METODOS_PAGO(metodo_pago_id) ON UPDATE CASCADE ON DELETE RESTRICT,
     fecha DATE NOT NULL DEFAULT CURRENT_DATE,
-    hora TIME NOT NULL DEFAULT CURRENT_TIME,
-    metodo_pago VARCHAR(50) NOT NULL CHECK (metodo_pago IN ('EFECTIVO', 'TRANSFERENCIA', 'TARJETA_CREDITO', 'TARJETA_DEBITO', 'MERCADOPAGO', 'OTRO'))
+    hora TIME NOT NULL DEFAULT CURRENT_TIME
+    -- metodo_pago (ENUM) reemplazado por la FK metodo_pago_id a METODOS_PAGO
     -- precio_total y costo_total eliminados: derivables del detalle (SUM de cantidad*precio_unidad y cantidad*costo_unidad)
     -- estado_entrega eliminado del modelo
 );
 
--- 11. DETALLE_VENTAS
+-- 12. DETALLE_VENTAS
 CREATE TABLE IF NOT EXISTS DETALLE_VENTAS (
     detalle_venta_id INTEGER PRIMARY KEY,
     venta_id INTEGER NOT NULL REFERENCES VENTAS(venta_id) ON UPDATE CASCADE ON DELETE CASCADE,
