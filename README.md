@@ -9,14 +9,29 @@ Todos los scripts y notebooks están pensados para ejecutarse de punta a punta.
 
 - **Python 3.10+**
 - **Docker** (para levantar PostgreSQL, MongoDB y Redis localmente)
-- Dependencias de Python: `pip install pyspark pymongo`
+- Dependencias de Python: `pip install pyspark pymongo redis notebook`
+- **Java JDK 17 o 21** (solo para la Etapa 3 / Spark; ver detalle en esa sección)
 
 ---
 
 ## Etapa 1 - Modelo Relacional (PostgreSQL)
 
 Archivos: `creacion_tablas.sql`, `generar_datos.py`, `poblado_datos.sql`,
-`validar_datos.sql`, `der.drawio` / `der.png`.
+`validar_datos.sql`, `der_viejo.drawio` / `der_nuevo.drawio` (diagramas DER, versiones
+antigua y nueva).
+
+**Entorno (Docker local):**
+
+```bash
+# Levantar PostgreSQL (puerto 5433 en el host -> 5432 en el contenedor)
+docker run -d -p 5433:5432 --name ibd_postgres_db \
+  -e POSTGRES_USER=<usuario> \
+  -e POSTGRES_PASSWORD=<password> \
+  -e POSTGRES_DB=<base> \
+  postgis/postgis:16-3.4
+```
+
+**Ejecución:**
 
 ```bash
 # 1) Crear el esquema
@@ -27,14 +42,23 @@ python3 generar_datos.py        # produce poblado_datos.sql
 
 # 3) Poblar la base
 psql -h localhost -p 5433 -U <usuario> -d <base> -f poblado_datos.sql
+
+# 4) (Opcional) validar consistencia (debe devolver 0 filas en A-D)
+psql -h localhost -p 5433 -U <usuario> -d <base> -f validar_datos.sql
 ```
 
 ## Etapa 2 - SQL Avanzado
 
 Archivos: `queries_con_funciones_ventana.sql` (2.1), `queries_estadisticas.sql` (2.2),
-`23_analisis_performance.sql` + `Ejercicio_2.3_Analisis_Performance.docx` (2.3).
+`create_index_23.sql` + `Ejercicio_2.3_Analisis_Performance.docx` (2.3).
 
-Se ejecutan con `psql` contra la base ya poblada.
+Se ejecutan con `psql` contra la base ya poblada, p. ej.:
+
+```bash
+psql -h localhost -p 5433 -U <usuario> -d <base> -f queries_con_funciones_ventana.sql
+psql -h localhost -p 5433 -U <usuario> -d <base> -f queries_estadisticas.sql
+psql -h localhost -p 5433 -U <usuario> -d <base> -f create_index_23.sql   # indice propuesto en 2.3
+```
 
 ## Etapa 3 - Procesamiento con Spark (PySpark)
 
@@ -48,8 +72,21 @@ export JAVA_HOME="$(/usr/libexec/java_home -v 17)"
 pip install pyspark
 ```
 
-> La notebook lee los datos desde CSV en la carpeta `data/`. Exportar las tablas de la Etapa 1
-> a CSV (con encabezado) antes de ejecutarla.
+La notebook lee los datos desde CSV en la carpeta `data/` (separados por coma y con
+encabezado). Hay que exportar tres tablas de la Etapa 1 **antes** de ejecutarla. Con la base
+ya poblada:
+
+```bash
+mkdir -p data
+psql -h localhost -p 5433 -U <usuario> -d <base> \
+  -c "\copy ventas        TO 'data/ventas.csv'        WITH (FORMAT csv, HEADER true)"
+psql -h localhost -p 5433 -U <usuario> -d <base> \
+  -c "\copy detalle_ventas TO 'data/detalle_ventas.csv' WITH (FORMAT csv, HEADER true)"
+psql -h localhost -p 5433 -U <usuario> -d <base> \
+  -c "\copy metodos_pago  TO 'data/metodos_pago.csv'  WITH (FORMAT csv, HEADER true)"
+```
+
+Luego ejecutar la notebook de arriba a abajo (*Restart & Run All*).
 
 ## Etapa 4 - Persistencia Políglota (NoSQL)
 
