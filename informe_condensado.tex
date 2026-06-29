@@ -22,6 +22,9 @@
 \usepackage{hyperref}
 \usepackage{caption}
 
+% --- Numeracion de tablas como "Tabla" (babel usa "Cuadro" por defecto) -------
+\addto\captionsspanish{\renewcommand{\tablename}{Tabla}}
+
 % --- Estilo de hipervinculos -------------------------------------------------
 \hypersetup{
     colorlinks=true,
@@ -62,7 +65,7 @@
 
 \title{\vspace{-1.5cm}\textbf{Introducción a Bases de Datos (IBD)}\\[0.4em]
        \Large Trabajo Práctico Grupal}
-\author{Teo Nabot \and Mario Sigal \and Felipe Pasquet (LU: 1084/22)}
+\author{Teo Nabot (LU: 996/22) \and Mario Sigal (LU: 157/22) \and Felipe Pasquet (LU: 1084/22)}
 \date{}
 
 \begin{document}
@@ -117,14 +120,20 @@ con \texttt{ultimo\_costo}: representa el último costo de reposición conocido.
     \centering
     \includegraphics[width=0.5\linewidth]{der viejo.jpeg}
     \includegraphics[width=0.49\linewidth]{der final.png}
-    \caption*{\textbf{FIGURA 1:} \textit{Diagramas Entidad-Relación (antiguo vs nuevo),
-    mostrando las decisiones de diseño tomadas} (Imágenes con mayor nitidez disponibles
-    en el anexo).}
+    \caption{Diagramas Entidad-Relación: modelo original (izquierda) vs. modelo final
+    (derecha), reflejando las decisiones de diseño tomadas. Versiones de mayor nitidez
+    en el anexo.}
+    \label{fig:der}
 \end{figure}
 
 Luego, en \texttt{DETALLE\_VENTAS}, el \texttt{costo\_unidad} representa el valor de
 \texttt{ultimo\_costo} de ese producto en el momento de la venta. Así logramos modelar
 que ventas distintas del mismo producto tengan costos distintos a lo largo del tiempo.
+
+También decidimos modelar el \textbf{método de pago como entidad propia}
+(\texttt{METODOS\_PAGO}, referenciada por \texttt{VENTAS.metodo\_pago\_id}) en lugar de un
+atributo \texttt{ENUM}/\texttt{CHECK IN (...)}. Esto permite agregar o renombrar medios de
+pago sin alterar la tabla \texttt{VENTAS} y evita un dominio rígido embebido en el esquema.
 
 \textbf{Dejamos afuera} todos los \textbf{atributos derivables (decisión de
 normalización):} no se almacena nada que pueda calcularse a partir de otras columnas
@@ -136,7 +145,7 @@ $cantidad \times (precio\_unidad - costo\_unidad)$), \texttt{precio\_total} y
 
 Tampoco se decidió modelar la entidad \texttt{COMBOS} porque esta se adecúa más a las
 propiedades de una base de datos NoSQL y se implementó en el ejercicio 4.2. Estos
-cambios respecto al modelo original del negocio se pueden ver en la FIGURA 1.
+cambios respecto al modelo original del negocio se pueden ver en la Figura~\ref{fig:der}.
 
 \subsubsection*{Descripción de cada constraint de negocio}
 
@@ -146,8 +155,9 @@ Todos los constraints viven en \texttt{creacion\_tablas.sql}. Se agrupan por tab
 \begin{itemize}[nosep]
     \item PK de carga manual \texttt{INTEGER} en todas las tablas (requisito del TP — ver 1.2).
     \item \texttt{UNIQUE} en identificadores naturales: \texttt{CATEGORIAS.nombre},
-    \texttt{MARCAS.nombre}, \texttt{PRODUCTOS.sku}, \texttt{PROVEEDORES.cuit},
-    \texttt{PUNTOS\_DE\_VENTA.nombre}, \texttt{CLIENTES.dni}, \texttt{CLIENTES.email}.
+    \texttt{MARCAS.nombre}, \texttt{METODOS\_PAGO.nombre}, \texttt{PRODUCTOS.sku},
+    \texttt{PROVEEDORES.cuit}, \texttt{PUNTOS\_DE\_VENTA.nombre}, \texttt{CLIENTES.dni},
+    \texttt{CLIENTES.email}.
 \end{itemize}
 
 \paragraph{Restricciones adicionales de dominio (validadas con CHECK)}
@@ -195,12 +205,14 @@ Generamos los datos con el script \textbf{\texttt{generar\_datos.py}} que constr
 
 \begin{table}[ht]
 \centering
+\caption{Cantidad de registros generados por tabla del modelo.}
 \begin{tabular}{@{}lr@{}}
 \toprule
 \textbf{Tabla} & \textbf{Registros} \\
 \midrule
 CATEGORIAS        & 6 \\
 MARCAS            & 10 \\
+METODOS\_PAGO     & 6 \\
 PROVEEDORES       & 6 \\
 PUNTOS\_DE\_VENTA & 4 \\
 PRODUCTOS         & 95 \\
@@ -276,6 +288,7 @@ top, pueden aparecer más de 3 productos por categoría.
 \begin{figure}[ht]
     \centering
     \includegraphics[width=1\linewidth]{image3.png}
+    \caption{Resultado de la Consulta 1: top 3 productos más rentables dentro de cada categoría.}
 \end{figure}
 
 \subsubsection*{Consulta 2 — Comportamiento de compra de cada cliente en el tiempo}
@@ -307,15 +320,18 @@ esa CTE.
 \begin{figure}[ht]
     \centering
     \includegraphics[width=1\linewidth]{image4.png}
+    \caption{Resultado de la Consulta 2: número de compra, gasto acumulado y días desde la compra anterior por cliente.}
 \end{figure}
 
 \subsection{Funciones estadísticas}
 
 Script: \textbf{\texttt{queries\_estadisticas.sql}}. Tabla analizada: \texttt{VENTAS}.
-Como \texttt{VENTAS} ya no almacena columnas numéricas, las tres consultas parten de una
-CTE (\texttt{WITH}) \texttt{ventas\_ext} que reconstruye
-\texttt{precio\_total}/\texttt{costo\_total} por venta desde el detalle. Esto cumple
-además el requisito de usar Common Table Expressions.
+Como \texttt{VENTAS} ya no almacena columnas numéricas, las consultas que necesitan los
+montos los reconstruyen por venta desde el detalle dentro de una CTE (\texttt{WITH}):
+C1 arma una \texttt{ventas\_ext} completa (las 8 columnas), C2 una \texttt{ventas\_ext}
+reducida con \texttt{precio\_total}/\texttt{costo\_total}, y C3 usa una CTE de conteo
+(\texttt{conteo}) sobre \texttt{VENTAS} unida a \texttt{METODOS\_PAGO}. En los tres casos
+se cumple el requisito de usar Common Table Expressions.
 
 \subsubsection*{C1 — Perfil general de cada columna}
 
@@ -328,9 +344,8 @@ largo (una fila por columna). \texttt{COUNT(col)} ignora \texttt{NULL} mientras 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.6\linewidth]{consultaEst1.png}
+    \caption{Perfil general de cada columna (C1): filas totales, no nulas y valores distintos.}
 \end{figure}
-\captura{\textbf{CAPTURA 9:} \textit{Resultado de C1 (perfil de las columnas;
-\texttt{cliente\_id} con \% no nulos < 100).}}
 
 \subsubsection*{C2 — Estadísticos de las columnas numéricas}
 
@@ -350,9 +365,9 @@ ceros, cantidad y \% de negativos, y \textbf{cantidad de outliers}. Técnicas de
 \begin{figure}[ht]
     \centering
     \includegraphics[width=1\linewidth]{consultaEst2.png}
+    \caption{Estadísticos de las columnas numéricas (C2): percentiles, dispersión y outliers.}
 \end{figure}
-\captura{\textbf{CAPTURA 10:} \textit{Resultado de C2 (estadísticos de
-\texttt{precio\_total} y \texttt{costo\_total}).}}
+
 
 \subsubsection*{C3 — Distribución de frecuencias de las columnas categóricas}
 
@@ -362,12 +377,12 @@ frecuencia y porcentaje, agrupando el resto en una fila (\texttt{resto}). Técni
 conteo $\rightarrow$ \texttt{ROW\_NUMBER() OVER (ORDER BY frecuencia DESC)} para rankear
 $+$ \texttt{SUM(frecuencia) OVER ()} para el total $\rightarrow$ \texttt{CASE} que separa
 top 10 de (\texttt{resto}).
+
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.5\linewidth]{consultaEst3.png}
+    \caption{Distribución de frecuencias de las columnas categóricas (C3).}
 \end{figure}
-\captura{\textbf{CAPTURA 11:} \textit{Resultado de C3 para \texttt{metodo\_pago} y
-\texttt{puntos\_de\_venta\_id}.}}
 
 \subsection{Análisis de Performance}
 
@@ -382,65 +397,69 @@ de ventana y dos ordenamientos. En el nuevo modelo \texttt{profit\_total} se cal
 $SUM(cantidad \cdot (precio\_unidad - costo\_unidad))$ (las columnas
 \texttt{subtotal}/\texttt{profit} ya no existen).
 
-\subsubsection*{Plan de ejecución (EXPLAIN ANALYZE)}
+Todas las mediciones de costo y tiempo de esta sección se obtuvieron sobre
+\textbf{PostgreSQL 16.4} (imagen \texttt{postgis/postgis:16-3.4}). Los costos y los planes
+elegidos pueden variar entre versiones del motor (cambios en el optimizador) y entre
+máquinas (los tiempos dependen del hardware y del estado de la caché).
+
+\subsubsection*{Plan de ejecución original (EXPLAIN ANALYZE)}
+
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.5\linewidth]{analyze1.png}
+    \caption{Plan de ejecución original (\texttt{EXPLAIN ANALYZE}), sin índices adicionales.}
 \end{figure}
-Ejecutamos \texttt{EXPLAIN ANALYZE} sobre la consulta 1 y obtuvimos la siguiente
-estructura de plan (de abajo hacia arriba), junto al costo que aporta cada operación:
+
+Ejecutamos \texttt{EXPLAIN ANALYZE} sobre la consulta original (sin índices adicionales) y observamos la estructura del plan (de abajo hacia arriba). A diferencia de lo estimado en etapas tempranas con menos datos, el plan real con la base de datos poblada muestra lo siguiente:
 
 \begin{table}[ht]
 \centering
+\caption{Costo acumulado por nodo del plan de ejecución original.}
 \begin{tabular}{@{}lrr@{}}
 \toprule
 \textbf{Operación} & \textbf{Costo total acum.} & \textbf{Costo que agrega} \\
 \midrule
-Seq Scan sobre \texttt{detalle\_ventas}                  & 262   & — \\
-Sort por \texttt{product\_id} (entrada del Merge Join)   & 1\,143 & +880 \\
-Merge Join + Nested Loop con productos/categorías        & 1\,359 & +216 \\
-Incremental Sort + GroupAggregate (el \texttt{GROUP BY}) & 2\,366 & +1\,007 \\
-Sort por (\texttt{categoria\_id}, \texttt{profit\_total} DESC) & 5\,585 & +3\,122 \\
-WindowAgg (calcula \texttt{DENSE\_RANK})                  & 5\,843 & +258 \\
-Sort final por (\texttt{categoria}, \texttt{posicion\_en\_categoria}) & \textbf{9\,094} & +3\,122 \\
+Seq Scans sobre \texttt{detalle\_ventas}, \texttt{productos} y \texttt{categorias} & $\sim$241 & — \\
+Hash Joins sucesivos para unir las 3 tablas & 332 & +91 \\
+Sort (preparación para agrupar) & 1\,263 & +931 \\
+GroupAggregate (el \texttt{GROUP BY}) & 1\,756 & +493 \\
+Incremental Sort (ordenamiento para la ventana) & 2\,452 & +696 \\
+WindowAgg (calcula \texttt{DENSE\_RANK}) & 2\,681 & +229 \\
+Sort final por (\texttt{categoria}, \texttt{posicion\_en\_categoria}) & \textbf{5\,945} & +3\,264 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\textbf{Notamos que} los \textbf{tres nodos Sort} concentran casi todo el costo. El Seq
-Scan sobre \texttt{detalle\_ventas} (262) es barato y óptimo: como la consulta agrega toda
-la tabla \textbf{sin WHERE}, leerla entera de forma secuencial es lo esperable. Notamos
-que aparecían \textbf{Index Scan sin haber creado índices}: son \texttt{productos\_pkey} y
-\texttt{categorias\_pkey}, los índices \textbf{implícitos} que respaldan las PK. El join se
-hace por PK (\texttt{c.categoria\_id = p.categoria\_id}) sobre tablas chicas, y buscar «la
-fila cuya PK = X» por índice es óptimo, por eso el planner los elige (con Memoize cacheando
-categorías ya buscadas).
+\textbf{Lectura del plan:} La estructura revela que PostgreSQL optó por realizar escaneos secuenciales (\texttt{Seq Scan}) sobre las tres tablas. Como la consulta agrega toda la tabla \textbf{sin filtros WHERE}, el motor asume que leer las tablas completas para luego unirlas mediante \texttt{Hash Join} es la estrategia más económica. Gran parte del costo global reside en los nodos \textbf{Sort}, especialmente el ordenamiento final derivado de la función de ventana.
 
-De los tres Sort, dos \textbf{no son indexables} porque ordenan \textbf{valores derivados}:
-\texttt{profit\_total} (un SUM del \texttt{GROUP BY}) y \texttt{posicion\_en\_categoria}
-(resultado del \texttt{DENSE\_RANK}). Ningún índice puede entregar pre-ordenado algo que no
-existe como columna base. El \textbf{único atacable} es el Sort por \texttt{product\_id}
-(+880), que ordena una columna real solo para alimentar el Merge Join. Índice propuesto:
+\subsubsection*{Solución propuesta y análisis comparativo}
+
+Para mitigar el costo de lectura de la tabla de hechos (\texttt{detalle\_ventas}), que es la de mayor volumen, propusimos el siguiente índice cubriente:
 
 \begin{lstlisting}[language=SQL]
 CREATE INDEX idx_detalle_ventas_producto
 ON detalle_ventas (product_id) INCLUDE (cantidad, precio_unidad, costo_unidad);
 \end{lstlisting}
 
-\textbf{De esta manera, eliminamos el Sort por \texttt{product\_id}:} el índice entrega las
-filas ya ordenadas por \texttt{product\_id}, justo lo que el Merge Join necesita.
+\textbf{Impacto tras aplicar el índice:}
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.5\linewidth]{analyze2.png}
+    \caption{Plan de ejecución tras crear el índice cubriente.}
 \end{figure}
 
 \begin{figure}[ht]
     \centering
     \includegraphics[width=1\linewidth]{analyze2 cerquita.png}
+    \caption{Detalle del \texttt{Index Only Scan} sobre el índice cubriente (\texttt{Heap Fetches: 0}).}
 \end{figure}
-\captura{\textbf{SOLO RESULTADO DE CAMBIO EN EL SORT CON ÍNDICE (SI NO CAMBIA NADA MÁS)
-+ MINI CONCLUSIÓN}}
+
+Al volver a ejecutar \texttt{EXPLAIN ANALYZE}, el plan de ejecución cambió drásticamente. El tiempo de ejecución real bajó de 20.45 ms a 14.37 ms y el costo bajó a 5844.
+
+El optimizador abandonó el \texttt{Hash Join} sobre \texttt{detalle\_ventas}. En su lugar, utilizó un \texttt{Merge Join} entre categorías y productos, y un \texttt{Nested Loop} que se alimenta de un \textbf{Index Only Scan} sobre nuestro nuevo índice \texttt{idx\_detalle\_ventas\_producto}. 
+
+El éxito de esta optimización radica en la cláusula \texttt{INCLUDE}: como el índice contiene las columnas base con las que la consulta calcula los \texttt{SUM} (\texttt{cantidad}, \texttt{precio\_unidad}, \texttt{costo\_unidad}), PostgreSQL resuelve la lectura sin necesidad de acceder a la tabla real en el disco (verificado por la métrica \texttt{Heap Fetches: 0}). Si bien la lectura de datos se optimizó al máximo logrando un escaneo exclusivo de índice, el costo global de la consulta sigue estando fuertemente dominado por los nodos \texttt{Sort} requeridos por \texttt{WindowAgg} y \texttt{GroupAggregate}.
 
 % ============================================================================
 \section{Etapa 3 — Procesamiento con Spark}
@@ -449,6 +468,7 @@ filas ya ordenadas por \texttt{product\_id}, justo lo que el Merge Join necesita
 En esta etapa utilizaremos PySpark para procesar los datos y responder consultas con
 MapReduce que serían muy difíciles o costosas de responder con un motor SQL convencional.
 Implementaremos 3 procesamientos de MapReduce sobre datos del dominio.
+
 
 \subsubsection*{Consulta 1 — Facturación, cantidad de ventas y ticket promedio por sucursal}
 
@@ -467,15 +487,14 @@ asociativa y conmutativa, lo que habilita el \textit{map-side combine}. Un
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.75\linewidth]{captura15.png}
+    \caption{Facturación total, cantidad de ventas y ticket promedio por sucursal.}
 \end{figure}
-\captura{\textbf{CAPTURA 15:} \textit{Tabla por sucursal: facturación total, cantidad de
-ventas y ticket promedio.}}
 
 \subsubsection*{Consulta 2 — Top 10 productos por ganancia}
 
 \textbf{Pregunta:} ¿cuáles son los 10 productos que más ganancias generaron? Esta pregunta
-es similar a la segunda consulta de la etapa 2. Podemos ver que esta manera de resolverla
-es bastante más sencilla e intuitiva.
+es similar a la primera consulta de la etapa 2 (ranking de productos más rentables por
+categoría). Podemos ver que esta manera de resolverla es bastante más sencilla e intuitiva.
 
 \textbf{Map:} por cada línea de \texttt{detalle\_ventas} mapeamos (clave:
 \texttt{product\_id}, valor: $cantidad \cdot (precio\_unidad - costo\_unidad)$)
@@ -490,9 +509,8 @@ ganancia total por producto.
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.5\linewidth]{captura16.png}
+    \caption{Top 10 productos por ganancia total acumulada.}
 \end{figure}
-\captura{\textbf{CAPTURA 16:} \textit{Top 10 \texttt{product\_id} por ganancia total
-acumulado.}}
 
 \subsubsection*{Consulta 3 — Distribución de ventas e ingresos por método de pago}
 
@@ -511,10 +529,8 @@ mínimo.
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.6\linewidth]{captura17.png}
+    \caption{Distribución de ventas e ingresos entre los métodos de pago.}
 \end{figure}
-\captura{\textbf{CAPTURA 17:} \textit{Distribución por método de pago (cantidad, \% y
-monto).}}
-
 % ============================================================================
 \section{Etapa 4 — Persistencia Políglota (NoSQL)}
 % ============================================================================
@@ -594,6 +610,7 @@ tiempo de vida elegido, y la justificación.
 
 \begin{table}[ht]
 \centering
+\caption{Datos con TTL en Redis: clave, tiempo de vida y justificación.}
 \renewcommand{\arraystretch}{1.5}
 \begin{tabular}{@{}p{2.6cm}p{5.3cm}p{1.3cm}p{6cm}@{}}
 \toprule
@@ -706,6 +723,7 @@ composición?
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.75\linewidth]{pipelineAMongoDB.png}
+    \caption{Pipeline A: top 5 combos más vendidos y su composición.}
 \end{figure}
 
 \paragraph{Pipeline B — Facturación total y valor de tickets promedio por mes.} ¿Cómo
@@ -723,6 +741,7 @@ evoluciona la facturación mes a mes?
 \begin{figure}[ht]
     \centering
     \includegraphics[width=0.65\linewidth]{pipelineBMongoDB.png}
+    \caption{Pipeline B: facturación total y ticket promedio mes a mes.}
 \end{figure}
 
 \subsubsection*{Reflexión: PostgreSQL vs. MongoDB}
@@ -742,13 +761,24 @@ ventas funciona como un registro histórico, no hay costos de mantenimiento extr
 actualizaciones: es decir, si se produjera un cambio en un combo, no habría que recorrer
 toda la colección de ventas y actualizar, en cada venta, ese combo. Esto produce que, para
 los datos modelados, el enfoque documental resulte beneficioso.
+\section{Reflexión final: PostgreSQL vs. MongoDB vs. Spark}
 
+El desarrollo de este trabajo demuestra que no existe una base de datos "bala de plata"; la arquitectura políglota es la respuesta a las demandas modernas.
+
+\begin{itemize}
+    \item \textbf{PostgreSQL} brilla como fuente de verdad transaccional (ACID) y es imbatible para cálculos analíticos complejos sobre relaciones estrictas (rankings, funciones de ventana y agregaciones con múltiples joins), aprovechando sus índices y su optimizador maduro.
+    \item \textbf{MongoDB} resulta mucho más natural y eficiente para entidades heterogéneas o con esquemas variables, como el caso de las Ventas y Combos. Al embeber las líneas de detalle dentro de un único documento polimórfico, se evitan \texttt{JOINs} costosos y columnas nulas (\texttt{NULLs} dispersos): la transacción completa se recupera con una sola lectura del documento, en lugar de reconstruirla uniendo varias tablas. Sin embargo, su debilidad recae en la responsabilidad que delega a la aplicación para mantener la consistencia de los datos ante actualizaciones de catálogo. Por eso \textbf{no resulta conveniente} cuando se necesita integridad referencial fuerte, transacciones ACID multi-documento o reportes analíticos con agregaciones y joins arbitrarios entre muchas entidades: en esos escenarios PostgreSQL sigue siendo la mejor opción.
+    \item \textbf{Apache Spark}, por su parte, entra en juego donde los motores relacionales convencionales se ahogan: el volumen masivo distribuido. Mientras que Postgres o Mongo procesan datos en una única instancia (o réplicas), el modelo de evaluación perezosa y el motor in-memory de Spark le permiten barrer millones de registros y realizar operaciones de agregación (MapReduce sobre RDDs) distribuyendo la carga a través de múltiples nodos de forma nativa.
+\end{itemize}
+
+\textbf{Conclusión:} La persistencia políglota consiste en usar cada herramienta donde es fuerte. PostgreSQL para integridad relacional, facturación estricta y analítica con joins y funciones de ventana; Redis para baja latencia en estados efímeros (colas, carritos y TTL); MongoDB para catálogos ricos y transacciones anidadas con esquema variable; y Spark para analítica distribuida a gran escala.
 % ============================================================================
 \section*{Anexo — Índice de archivos del repositorio}
 \addcontentsline{toc}{section}{Anexo — Índice de archivos del repositorio}
 % ============================================================================
 
 \begin{longtable}{@{}p{8cm}p{1.4cm}p{8cm}@{}}
+\caption{Índice de archivos del repositorio.}\\
 \toprule
 \textbf{Archivo} & \textbf{Etapa} & \textbf{Contenido} \\
 \midrule
